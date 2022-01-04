@@ -22,7 +22,6 @@ import org.apache.logging.log4j.plugins.Plugin;
 import org.apache.logging.log4j.plugins.PluginAliases;
 import org.apache.logging.log4j.plugins.processor.PluginCache;
 import org.apache.logging.log4j.plugins.processor.PluginEntry;
-import org.apache.logging.log4j.plugins.processor.PluginProcessor;
 import org.apache.logging.log4j.plugins.processor.PluginService;
 import org.apache.logging.log4j.status.StatusLogger;
 import org.apache.logging.log4j.util.LoaderUtil;
@@ -196,12 +195,22 @@ public class PluginRegistry {
      * @since 3.0
      */
     public void loadPlugins(Map<String, List<PluginType<?>>> map) {
+        Throwable throwable = null;
+        ClassLoader errorClassLoader = null;
+        boolean allFail = true;
         for (ClassLoader classLoader : LoaderUtil.getClassLoaders()) {
             try {
                 loadPlugins(classLoader, map);
+                allFail = false;
             } catch (Throwable ex) {
-                LOGGER.debug("Unable to retrieve provider from ClassLoader {}", classLoader, ex);
+                if (throwable == null) {
+                    throwable = ex;
+                    errorClassLoader = classLoader;
+                }
             }
+        }
+        if (allFail && throwable != null) {
+            LOGGER.debug("Unable to retrieve provider from ClassLoader {}", errorClassLoader, throwable);
         }
     }
 
@@ -244,7 +253,7 @@ public class PluginRegistry {
         final long startTime = System.nanoTime();
         final PluginCache cache = new PluginCache();
         try {
-            final Enumeration<URL> resources = loader.getResources(PluginProcessor.PLUGIN_CACHE_FILE);
+            final Enumeration<URL> resources = loader.getResources(PluginManager.PLUGIN_CACHE_FILE);
             if (resources == null) {
                 LOGGER.info("Plugin preloads not available from class loader {}", loader);
             } else {
